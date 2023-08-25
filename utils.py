@@ -38,12 +38,9 @@ glyphs_parser = Lark(r'''
     dict : "{" [(pair ";")*] "}"
     pair : string "=" value
 
-    string : /[a-zA-Z0-9_.-]+/
-    quoted_string : ESCAPED_STRING | MULTILINE_QUOTED_STRING
+    string : /[a-zA-Z0-9_.]+/
+    quoted_string : /"([^"\\]*(\\.[^"\\]*)*)"/
 
-    MULTILINE_QUOTED_STRING : /"([^"\\]*(\\.[^"\\]*)*)"/
-
-    %import common.ESCAPED_STRING
     %import common.SIGNED_NUMBER
     %import common.WS
     %ignore WS
