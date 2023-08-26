@@ -1,5 +1,5 @@
 # Proof of concept for grouping of glyphs based on their shapes
 
-from utils import GlyphsFile
+from glyphsLib import GSFont
 
-glyphs_data = GlyphsFile('Mon Gara.glyphs')
+font = GSFont('Mon Gara.glyphs')
