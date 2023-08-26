@@ -1,3 +1,5 @@
+import re
+
 from lark import Lark, Transformer
 
 
@@ -57,10 +59,43 @@ class GlyphLayer:
         self.master_id = master_id # self.master?
         self.is_default = is_default
         self.width = width
-        self.shapes = shapes
+        self.shapes = shapes # unparsed raw data, should we parse it?
+    
+    @property
+    def height(self):
+        ascender = 840
+        descender = 160
+        height = ascender + descender
+        return height
     
     def __repr__(self):
-        return f'<Layer "{self.name}" of Glyph "{self.glyph.name}">'
+        return f'<Layer "{self.name}" of "{self.glyph.name}">'
+    
+    def to_svg_code(self, scaling=1) -> str:
+        descender = 160
+        svg_code = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/>'.format(self.width * scaling, self.height * scaling)
+        for path in self.shapes:
+            if 'ref' in path: # Component path
+                # TODO: return the raw SVG path for that component (without headers and stuff)
+                continue
+            path_d = 'M {} {} '.format(path['nodes'][-1][0] * scaling, (self.height - path['nodes'][-1][1] - descender) * scaling)
+            i = 0
+            while i < len(path['nodes']) - 1:
+                node = path['nodes'][i]
+                if node[2] == 'o':
+                    assert path['nodes'][i + 1][2] == 'o'
+                    assert path['nodes'][i + 2][2] in ('c', 'cs')
+                    path_d += 'C {} {}, {} {}, {} {} '.format(node[0] * scaling, (self.height - node[1] - descender) * scaling, path['nodes'][i + 1][0] * scaling, (self.height - path['nodes'][i + 1][1] - descender) * scaling, path['nodes'][i + 2][0] * scaling, (self.height - path['nodes'][i + 2][1] - descender) * scaling)
+                    i += 2
+                elif node[2] == 'l':
+                    path_d += 'L {} {} '.format(node[0] * scaling, (self.height - node[1] - descender) * scaling)
+                elif node[2] == 'c':
+                    raise ValueError
+                i += 1
+            path_d += 'Z'
+            svg_code += '<path d="{}" fill="black" fill-rule="evenodd"/>'.format(path_d)
+        svg_code += '</svg>'
+        return svg_code
 
 
 class Master:
@@ -68,7 +103,28 @@ class Master:
     def __init__(self, master_id, name):
         self.id = master_id
         self.name = name
-        # TODO: metric values
+        self.metrics = {}
+        # baseline is also 0
+
+        # self.metrics = 
+
+
+        {
+          "over": 16,
+          "pos": 880
+        },
+
+
+
+
+class Metric:
+
+    def __init__(self, metric_type, index, filters_string):
+        self.type = metric_type
+        self.index = index
+        matched = re.match(r'(.+) == "(.+)"', filters_string).groups() # TODO: only works for one filter rn
+        self.filters = dict((matched))
+        # TODO: given a character, return if it passes all filters
 
 
 class _GlyphsTransformer(Transformer):
