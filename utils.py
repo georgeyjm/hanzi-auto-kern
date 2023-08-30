@@ -1,8 +1,11 @@
+import re
+
+import pyvips
 from glyphsLib import GSLayer, GSComponent
 
 
 def layer_to_svg_code(layer: GSLayer, scaling: float=1) -> str:
-    '''Convert a GSLayer into SVG code with headers and background.'''
+    '''Converts a GSLayer into SVG code with headers and background.'''
 
     # Setup SVG parameters
     ascender = layer.master.ascender
@@ -18,13 +21,14 @@ def layer_to_svg_code(layer: GSLayer, scaling: float=1) -> str:
     return svg_code
 
 
-def _layer_to_svg_path(layer: GSLayer, scaling: float=1, x_offset: float=0.0, y_offset: float=0.0):
-    '''Convert a GSLayer into SVG path code.'''
+def _layer_to_svg_path(layer: GSLayer, scaling: float=1, x_offset: float=0.0, y_offset: float=0.0) -> str:
+    '''Converts a GSLayer into SVG path code.'''
 
     path_d = ''
     for path in layer.shapes:
         # Component shape
         if isinstance(path, GSComponent):
+            # Recursion for component's layer
             path_d += _layer_to_svg_path(path.layer, scaling, path.position.x + x_offset, -path.position.y + y_offset)
             continue
 
@@ -58,3 +62,25 @@ def _layer_to_svg_path(layer: GSLayer, scaling: float=1, x_offset: float=0.0, y_
             i += 1
         path_d += 'Z '
     return path_d
+
+
+def unicode_to_glyph_name(character: str) -> str:
+    '''Converts a unicode character to its Glyphs-style glyph name (uniXXXX).'''
+    # TODO: perhaps return directly for ASCII range?
+    return 'uni' + hex(ord(character)).lstrip('0x').upper()
+
+
+def glyph_name_to_unicode(glyph_name: str) -> str:
+    '''Converts a glyph name to its corresponding unicode character.'''
+    if (match := re.match(r'uni([0-9a-fA-F]{4})', glyph_name)) is None:
+        return glyph_name
+    return chr(int(match.groups()[0], 16))
+
+
+def layer_to_numpy(layer: GSLayer, scaling: float=1):
+    '''Converts a GSLayer into single-channel NumPy array with anti-aliasing.'''
+
+    svg_code = layer_to_svg_code(layer) # Scaling will only be done later through pyvips
+    im = pyvips.Image.svgload_buffer(bytes(svg_code, 'utf-8'), scale=scaling)
+    arr = (255 - im.numpy()[:, :, 0]) / 255
+    return arr
