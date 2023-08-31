@@ -21,6 +21,17 @@ def layer_to_svg_code(layer: GSLayer, scaling: float=1) -> str:
     return svg_code
 
 
+def _iter_shapes(layer: GSLayer):
+    '''Recursively iterate over all shapes in a layer.'''
+
+    for shape in layer.shapes:
+        if isinstance(shape, GSComponent): # Component shape
+            for component_shape in iter_shapes(shape.layer):
+                yield component_shape
+        else:
+            yield shape
+
+
 def _layer_to_svg_path(layer: GSLayer, scaling: float=1, x_offset: float=0.0, y_offset: float=0.0) -> str:
     '''Converts a GSLayer into SVG path code.'''
 
