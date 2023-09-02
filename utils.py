@@ -4,24 +4,29 @@ import pyvips
 from glyphsLib import GSLayer, GSComponent
 
 
+def get_layer_dimensions(layer: GSLayer) -> (int, int):
+    ascender = layer.master.ascender
+    descender = layer.master.descender
+    height = ascender - descender # Will be incorrect for non-latin characters, this is something glyphsLib has to fix first, also overshoot is not implemented yet for the same reason
+    width = layer.width
+    return width, height
+
 def layer_to_svg_code(layer: GSLayer, scaling: float=1) -> str:
     '''Converts a GSLayer into SVG code with headers and background.'''
 
     # Setup SVG parameters
-    ascender = layer.master.ascender
-    descender = layer.master.descender
-    height = ascender - descender # Will be incorrect for non-latin characters, this is something glyphsLib has to fix first, also overshoot is not implemented yet for the same reason
-    y_offset = ascender
+    width, height = get_layer_dimensions(layer)
+    y_offset = layer.master.ascender
     path_d = _layer_to_svg_path(layer, scaling, 0, y_offset)
 
-    svg_code = f'<svg width="{layer.width * scaling}" height="{height * scaling}" xmlns="http://www.w3.org/2000/svg">\
+    svg_code = f'<svg width="{width * scaling}" height="{height * scaling}" xmlns="http://www.w3.org/2000/svg">\
                  <rect width="100%" height="100%" fill="white"/>\
                  <path d="{path_d}" fill="black"/>\
                  </svg>'.replace('  ', '')
     return svg_code
 
 
-def _iter_shapes(layer: GSLayer):
+def iter_shapes(layer: GSLayer):
     '''Recursively iterate over all shapes in a layer.'''
 
     for shape in layer.shapes:

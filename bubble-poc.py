@@ -2,10 +2,12 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+from skimage.draw import polygon
 from skimage.morphology import convex_hull_image
+from shapely.geometry import Polygon, MultiPolygon
 from glyphsLib import GSFont, GSLayer
 
-from utils import layer_to_numpy, unicode_to_glyph_name, glyph_name_to_unicode, layer_to_svg_code
+from utils import layer_to_numpy, unicode_to_glyph_name, glyph_name_to_unicode, layer_to_svg_code, iter_shapes, get_layer_dimensions
 
 
 def analyze_layer(layer: GSLayer, blocks: int=3):
@@ -22,10 +24,34 @@ def analyze_layer(layer: GSLayer, blocks: int=3):
         print()
 
 
-def generate_convex_hull(arr: np.array) -> np.array:
-    # arr = layer_to_numpy(layer)
+def generate_convex_hull(layer: GSLayer) -> np.array:
+    arr = layer_to_numpy(layer)
     chull = convex_hull_image(arr)
     return chull.astype(float)
+
+
+def generate_expanded_convex_hull(layer: GSLayer, width: float=100, cap_style: int=3, join_style: int=3) -> np.array:
+    # Generate convex hull of original glyph shape
+    polygons = []
+    for shape in iter_shapes(layer):
+        coords = []
+        for node in shape.nodes:
+            if node.type in ('line', 'curve'):
+                coords.append((node.position.x, node.position.y))
+        polygons.append(Polygon(coords))
+    multi_polygon = MultiPolygon(polygons)
+    chull = multi_polygon.convex_hull
+
+    # Expand polygon and calculate the interior pixel matrix
+    assert cap_style in (1, 2, 3) and join_style in (1, 2, 3)
+    expanded_chull = chull.buffer(width, cap_style=cap_style, join_style=join_style)
+    exterior_coords = np.array(expanded_chull.exterior.xy)
+    width, height = get_layer_dimensions(layer)
+    ascender = layer.master.ascender
+    chull_arr = np.zeros((width, height), dtype='float')
+    interior_coords = polygon(ascender - exterior_coords[1], exterior_coords[0], chull_arr.shape)
+    chull_arr[interior_coords] = 1
+    return chull_arr
 
 
 def min_horizontal_distance(left_arr: np.array, right_arr: np.array) -> int:
@@ -38,7 +64,7 @@ def min_horizontal_distance(left_arr: np.array, right_arr: np.array) -> int:
         dist = left_arr.shape[1] - np.max(np.where(left_arr[row])) + np.min(np.where(right_arr[row]))
         if dist < min_dist:
             min_dist = dist
-    return min_dist - 1 # No overlap at all
+    return min_dist # No overlap at all
 
 
 def display_glyphs_with_kerning(arrs: list, kernings: list):
@@ -90,17 +116,21 @@ threshold = 0.2
 
 display_arrs = []
 kernings = []
-for i in (10000, 10001, 10002, 10003):
-    layer = font.glyphs[i].layers[0]
-    arr = layer_to_numpy(layer)
-    chull = generate_convex_hull(arr)
-    chull[arr > 0] = 2 # Displaying both glyph and bubble, can be changed later on
-    display_arrs.append(chull)
+for char in ['中','㒰','㒱','乄','丆','㓀']:
+    layer = font.glyphs[unicode_to_glyph_name(char)].layers[0]
+    expanded_chull = generate_expanded_convex_hull(layer)
+    chull = generate_convex_hull(layer)
+    arr = layer_to_numpy(layer) # for displaying original character
+    expanded_chull[chull > 0] = 2 # Displaying both convex hull and its expansion
+    expanded_chull[arr > 0] = 3 # Displaying both glyph and bubble, can be changed later on
+    display_arrs.append(expanded_chull)
     if len(display_arrs) <= 1:
         continue
     kerning = min_horizontal_distance(display_arrs[-2], display_arrs[-1])
     kernings.append(kerning)
 display_glyphs_with_kerning(display_arrs, kernings)
+
+# TODO: convex hulls of sub-sections of a glyph?
 
 
 
